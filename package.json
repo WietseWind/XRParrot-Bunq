@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@bunq-community/bunq-js-client": "^0.22.4",
+    "json-store": "^1.0.0",
+    "node-fetch": "^2.2.0",
+    "rippled-ws-client": "^1.0.0",
+    "rippled-ws-client-sign": "^0.2.0"
+  }
+}
