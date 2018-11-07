@@ -178,14 +178,32 @@ setup().then(async setup => {
                 Memos: [
                     {
                         Memo: {
-                            MemoType: Buffer.from('Client', 'utf8').toString('hex').toUpperCase(),
+                            MemoType: Buffer.from('Service', 'utf8').toString('hex').toUpperCase(),
                             MemoData: Buffer.from('XRParrot', 'utf8').toString('hex').toUpperCase()
                         }
                     },
                     {
                         Memo: {
-                            MemoType: Buffer.from('Order', 'utf8').toString('hex').toUpperCase(),
+                            MemoType: Buffer.from('OrderId', 'utf8').toString('hex').toUpperCase(),
                             MemoData: Buffer.from(data.payment.memo, 'utf8').toString('hex').toUpperCase()
+                        }
+                    },
+                    {
+                        Memo: {
+                            MemoType: Buffer.from('BankTransferEUR', 'utf8').toString('hex').toUpperCase(),
+                            MemoData: Buffer.from(paymentDetails.amounts.input.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
+                        }
+                    },
+                    {
+                        Memo: {
+                            MemoType: Buffer.from('XRParrotFeeEUR', 'utf8').toString('hex').toUpperCase(),
+                            MemoData: Buffer.from(paymentDetails.amounts.fee.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
+                        }
+                    },
+                    {
+                        Memo: {
+                            MemoType: Buffer.from('PayoutEUR', 'utf8').toString('hex').toUpperCase(),
+                            MemoData: Buffer.from(data.payment.eur.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
                         }
                     }
                 ]
