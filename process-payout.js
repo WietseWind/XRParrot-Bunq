@@ -123,7 +123,7 @@ setup().then(async setup => {
         .then(data => {
             const amountValue = parseFloat(data.order.amount.value)
             if (data.order.amount.currency === 'EUR' && data.livePayment.id === data.order.id && data.livePayment.counterparty_alias.iban === data.order.counterparty_alias.iban && data.livePayment.amount.currency === data.order.amount.currency && parseFloat(data.livePayment.amount.value) === amountValue) {
-                let fee = amountValue * 0.005
+                let fee = Math.floor(amountValue * 0.005 * 100) / 100
                 if (fee < 1) fee = 1
                 let amount = Math.floor((amountValue - fee) * 100) / 100
 
