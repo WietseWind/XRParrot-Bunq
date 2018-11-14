@@ -62,6 +62,7 @@ const getUsers = () => BunqClient.getUsers(true)
 // run setup and get payments
 setup().then(async setup => {
     const MODE = process.argv.length > 2 && process.argv[2].toUpperCase() === 'PROD' ? 'PROD' : 'TEST'
+    const TXID = process.argv.length > (MODE === 'TEST' ? 2 : 3) && process.argv[(MODE === 'TEST' ? 2 : 3)].match(/^[0-9]+$/) ? parseInt(process.argv[(MODE === 'TEST' ? 2 : 3)]) : null
 
     const users = await getUsers()
     const userType = Object.keys(users)[0] // UserCompany / UserPerson
@@ -76,13 +77,19 @@ setup().then(async setup => {
     return Fetch(API_ENDPOINTS[MODE] + 'payment-cursor', { method: 'GET', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_TOKENS[MODE] } })
         .then(res => res.json())
         .then(json => { 
-            console.log(json.data)
+            if (TXID === null) {
+                console.dir(json.data, { depth: null })
+            }
             // process.exit(0)
             return json.data 
         })
-        .then(id => getPayments(users[userType].id, activeAccounts[0].MonetaryAccountBank.id, { count: 200, newer_id: id, older_id: false }))
+        .then(id => getPayments(users[userType].id, activeAccounts[0].MonetaryAccountBank.id, { 
+            count: TXID === null ? 200 : 1,
+            newer_id: TXID === null ? id : TXID - 1,
+            older_id: false
+        }))
         .then(payments => {
-            console.log(payments)
+            console.dir(payments, { depth: null })
             return Fetch(API_ENDPOINTS[MODE] + 'payments', {
                 method: 'POST', 
                 body: JSON.stringify(payments.map(p => { return p.Payment })), 
@@ -90,7 +97,7 @@ setup().then(async setup => {
             })
             .then(res => res.json())
             .then(json => {
-                console.log(json)
+                console.dir(json, { depth: null })
                 return
             })
         })

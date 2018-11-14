@@ -170,8 +170,10 @@ setup().then(async setup => {
                 TransactionType: 'Payment',
                 Flags: 131072,
                 Account: XPRL_HOTWALLET,
-                Destination: data.payment.to,
-                DestinationTag: data.payment.tag,
+                Destination: XPRL_HOTWALLET,
+                Fee: '20',
+                // Destination: data.payment.to,
+                // DestinationTag: data.payment.tag,
                 Amount: Math.floor((data.payment.eur / data.offerRates[0]) * 1000000),
                 SendMin: { ...XRPL_PAIR, value: data.payment.eur + '' },
                 SendMax: { ...XRPL_PAIR, value: data.payment.eur + '' },
@@ -184,7 +186,7 @@ setup().then(async setup => {
                     },
                     {
                         Memo: {
-                            MemoType: Buffer.from('OrderId', 'utf8').toString('hex').toUpperCase(),
+                            MemoType: Buffer.from('PaymentId', 'utf8').toString('hex').toUpperCase(),
                             MemoData: Buffer.from(data.payment.memo, 'utf8').toString('hex').toUpperCase()
                         }
                     },
@@ -212,13 +214,52 @@ setup().then(async setup => {
             paymentDetails.xrplTx = tx
               
             const signAndSubmit = await new RippledWsClientSign(tx, FAMILY_SEED, data.connection)
+
             return {
                 tx: signAndSubmit,
+                xrpDestination: {
+                    to: data.payment.to,
+                    tag: data.payment.tag
+                },
                 connection: data.connection
             }
         })
         .then(async data => {
             console.log(data.tx)
+            console.log(`=====> Fetching On Ledger DEX OUTPUT...`)
+            const onLedgerOutput = await data.connection.send({
+                command: 'tx',
+                transaction: data.tx.hash
+            })
+            let deliveredAmount
+            console.log('TX1 DEX OUTPUT', onLedgerOutput)
+            paymentDetails.xrplOnLedgerOutput = onLedgerOutput
+            try {
+                deliveredAmount = onLedgerOutput.meta.DeliveredAmount
+                if ((parseInt(deliveredAmount) || 0) > 0) {
+                    console.log('onLedgerOutput -- DeliveredAmount', deliveredAmount)    
+                } else {
+                    throw new Error('Invalid deliveredAmount for TX1 DEX OUTPUT')
+                }
+            } catch (e) {
+                throw new Error('Cannot determine exchange output, no TX1 "meta.DeliveredAmount" found.')
+            }
+            if (deliveredAmount) {
+                const payoutTransaction = {
+                    TransactionType: 'Payment',
+                    Account: XPRL_HOTWALLET,
+                    Fee: '20',
+                    Destination: data.xrpDestination.to,
+                    DestinationTag: data.xrpDestination.tag,
+                    Amount: deliveredAmount,
+                    Memos: paymentDetails.xrplTx.Memos
+                }
+                console.log('<< NOW PAYOUT THE CONVERTED XRP >>', payoutTransaction)
+                const signAndSubmit = await new RippledWsClientSign(payoutTransaction, FAMILY_SEED, data.connection)
+                console.log('------ FINAL TX2 PAYOUT RESULTS', signAndSubmit)
+                paymentDetails.xrplTxPayout = signAndSubmit
+            }
+
             console.log(`=====> Closing connection to rippled...`)
             await data.connection.close()
             return data.tx
