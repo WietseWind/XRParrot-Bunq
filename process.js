@@ -123,8 +123,13 @@ setup().then(async setup => {
         .then(data => {
             const amountValue = parseFloat(data.order.amount.value)
             if (data.order.amount.currency === 'EUR' && data.livePayment.id === data.order.id && data.livePayment.counterparty_alias.iban === data.order.counterparty_alias.iban && data.livePayment.amount.currency === data.order.amount.currency && parseFloat(data.livePayment.amount.value) === amountValue) {
+                let swiftFee = 0
                 let fee = Math.floor(amountValue * 0.005 * 100) / 100
                 if (fee < 1) fee = 1
+                if (typeof data.order.type === 'string' && data.order.type.toUpperCase() === 'SWIFT') {
+                    swiftFee = 5
+                    fee += swiftFee
+                }
                 let amount = Math.floor((amountValue - fee) * 100) / 100
 
                 if (amount < 0.25) throw new Error('Payment < 0.25 EUR will not be processed.')
@@ -133,6 +138,9 @@ setup().then(async setup => {
                     input: amountValue,
                     fee: fee,
                     payout: amount
+                }
+                if (swiftFee > 0) {
+                    paymentDetails.amounts.swiftFee = swiftFee
                 }
 
                 return {
@@ -166,6 +174,47 @@ setup().then(async setup => {
         })
         .then(async data => {
             console.log(`=====> Connected, Sign & Submit transaction`)
+            let Memos = [
+                {
+                    Memo: {
+                        MemoType: Buffer.from('Service', 'utf8').toString('hex').toUpperCase(),
+                        MemoData: Buffer.from('XRParrot', 'utf8').toString('hex').toUpperCase()
+                    }
+                },
+                {
+                    Memo: {
+                        MemoType: Buffer.from('PaymentId', 'utf8').toString('hex').toUpperCase(),
+                        MemoData: Buffer.from(data.payment.memo, 'utf8').toString('hex').toUpperCase()
+                    }
+                },
+                {
+                    Memo: {
+                        MemoType: Buffer.from('BankTransferEUR', 'utf8').toString('hex').toUpperCase(),
+                        MemoData: Buffer.from(paymentDetails.amounts.input.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
+                    }
+                },
+                {
+                    Memo: {
+                        MemoType: Buffer.from('XRParrotFeeEUR', 'utf8').toString('hex').toUpperCase(),
+                        MemoData: Buffer.from(paymentDetails.amounts.fee.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
+                    }
+                },
+                {
+                    Memo: {
+                        MemoType: Buffer.from('PayoutEUR', 'utf8').toString('hex').toUpperCase(),
+                        MemoData: Buffer.from(data.payment.eur.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
+                    }
+                }
+            ]
+            if (typeof paymentDetails.amounts.swiftFee !== 'undefined') {
+                Memos.push({
+                    Memo: {
+                        MemoType: Buffer.from('SWIFTFeeEUR', 'utf8').toString('hex').toUpperCase(),
+                        MemoData: Buffer.from(paymentDetails.amounts.swiftFee.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
+                    }
+                })
+            }
+
             const tx = {
                 TransactionType: 'Payment',
                 Flags: 131072,
@@ -177,38 +226,7 @@ setup().then(async setup => {
                 Amount: Math.floor((data.payment.eur / data.offerRates[0]) * 1000000),
                 SendMin: { ...XRPL_PAIR, value: data.payment.eur + '' },
                 SendMax: { ...XRPL_PAIR, value: data.payment.eur + '' },
-                Memos: [
-                    {
-                        Memo: {
-                            MemoType: Buffer.from('Service', 'utf8').toString('hex').toUpperCase(),
-                            MemoData: Buffer.from('XRParrot', 'utf8').toString('hex').toUpperCase()
-                        }
-                    },
-                    {
-                        Memo: {
-                            MemoType: Buffer.from('PaymentId', 'utf8').toString('hex').toUpperCase(),
-                            MemoData: Buffer.from(data.payment.memo, 'utf8').toString('hex').toUpperCase()
-                        }
-                    },
-                    {
-                        Memo: {
-                            MemoType: Buffer.from('BankTransferEUR', 'utf8').toString('hex').toUpperCase(),
-                            MemoData: Buffer.from(paymentDetails.amounts.input.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
-                        }
-                    },
-                    {
-                        Memo: {
-                            MemoType: Buffer.from('XRParrotFeeEUR', 'utf8').toString('hex').toUpperCase(),
-                            MemoData: Buffer.from(paymentDetails.amounts.fee.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
-                        }
-                    },
-                    {
-                        Memo: {
-                            MemoType: Buffer.from('PayoutEUR', 'utf8').toString('hex').toUpperCase(),
-                            MemoData: Buffer.from(data.payment.eur.toFixed(2) + '', 'utf8').toString('hex').toUpperCase()
-                        }
-                    }
-                ]
+                Memos: Memos
             }
             console.log(tx)
             paymentDetails.xrplTx = tx
